@@ -16,7 +16,7 @@ project-root/
 
 │
 
-├── index.html        # Main application file
+├── gaze.html        # Main application file
 
 ├── README.md         # Project documentation (this file)
 
@@ -25,9 +25,9 @@ There are no backend services, build tools, or external configuration files.
 
 ---
 
-## index.html (Main Application File)
+## gaze.html (Main Application File)
 
-The `index.html` file contains **all components** of the prototype:
+The `gaze.html` file contains **all components** of the prototype:
 
 ### 1. HTML Structure
 - Defines the layout of the interface
@@ -40,7 +40,7 @@ The `index.html` file contains **all components** of the prototype:
 - Transitions are kept subtle to avoid visual distraction
 
 ### 3. JavaScript Logic
-The JavaScript code inside `index.html` is responsible for:
+The JavaScript code inside `gaze.html` is responsible for:
 
 - Initializing **WebGazer.js**
 - Requesting webcam access
@@ -71,7 +71,7 @@ This design avoids unintended activation and keeps interaction predictable.
 
 ## How to Run the Project
 
-1. Open `index.html` in a modern web browser (Chrome or Firefox recommended)
+1. Open `gaze.html` in a modern web browser (Chrome or Firefox recommended)
 2. Allow webcam access when prompted
 3. Complete the on-screen calibration
 4. Interact with the menu using gaze + mouse clicks
@@ -91,9 +91,8 @@ No installation or server setup is required.
 
 ## Author
 
-**G Kushal**  
-Stony Brook University  
-CSE 518 – Human–Computer Interaction  
+**Kushal Gubbala**  
+Stony Brook University    
 
 ---
 
