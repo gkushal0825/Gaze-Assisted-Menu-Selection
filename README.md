@@ -101,9 +101,8 @@ This project was developed as part of an HCI course research assignment. It is i
 
 ## Author
 
-**G Kushal**  
-Stony Brook University  
-CSE 518 – Human–Computer Interaction  
+**Kushal Gubbala**  
+Stony Brook University 
 
 ---
 
