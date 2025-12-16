@@ -39,7 +39,9 @@ All gaze processing happens locally in the browser. No video frames or gaze data
 ## Code Structure
 
 project-root/
+
 │
+
 ├── index.html # Main application file
 
 ├── README.md # Project documentation
