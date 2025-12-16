@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Gaze-Assisted Workspace (Dwell-to-Click)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- WebGazer.js -->
+  <script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
+
+  <style>
+    * ,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg-gradient: radial-gradient(circle at top left, #020617 0, #020617 30%, #0b1120 65%, #020617 100%);
+      --glass-bg: rgba(15, 23, 42, 0.7);
+      --glass-border: rgba(148, 163, 184, 0.5);
+      --accent: #38bdf8;
+      --accent-soft: rgba(56, 189, 248, 0.3);
+      --accent-strong: #22c55e;
+      --text-main: #e5e7eb;
+      --text-muted: #9ca3af;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      background: var(--bg-gradient);
+      color: var(--text-main);
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: -40%;
+      background:
+        radial-gradient(circle at 10% 0%, rgba(56, 189, 248, 0.15) 0, transparent 40%),
+        radial-gradient(circle at 90% 100%, rgba(147, 51, 234, 0.18) 0, transparent 45%);
+      opacity: 0.9;
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    header {
+      padding: 1rem 1.7rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      backdrop-filter: blur(24px);
+      background: linear-gradient(90deg, rgba(15, 23, 42, 0.92), rgba(15, 23, 42, 0.75));
+      border-bottom: 1px solid rgba(148, 163, 184, 0.45);
+      box-shadow: 0 18px 45px rgba(15, 23, 42, 0.8);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+    }
+
+    .logo-orb {
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 20%, #facc15 0, #f97316 35%, #7c3aed 70%);
+      box-shadow:
+        0 0 16px rgba(248, 250, 252, 0.7),
+        0 0 40px rgba(129, 140, 248, 0.8);
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    #statusText {
+      margin: 0.25rem 0 0;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .mode-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.45rem 0.85rem;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      background: radial-gradient(circle at 0% 0%, rgba(56,189,248,0.35), rgba(15,23,42,0.85));
+      box-shadow: 0 0 22px rgba(56, 189, 248, 0.65);
+      font-size: 0.78rem;
+    }
+
+    .mode-pill-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--accent-strong);
+      box-shadow: 0 0 14px rgba(34, 197, 94, 0.9);
+    }
+
+    main {
+      padding: 1.7rem 1.7rem 2.3rem;
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+
+    .stack {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.6rem;
+    }
+
+    .card {
+      background: var(--glass-bg);
+      border-radius: 20px;
+      padding: 1rem 1.3rem;
+      border: 1px solid var(--glass-border);
+      box-shadow:
+        0 18px 55px rgba(15, 23, 42, 0.95),
+        0 0 0 1px rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(26px);
+    }
+
+    .card--controls {
+      max-width: 480px;
+      width: 100%;
+    }
+
+    .card h2 {
+      margin-top: 0;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #e5e7eb;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .subtext {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: -0.15rem;
+      margin-bottom: 0.6rem;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 0.75rem;
+      align-items: center;
+      margin-bottom: 0.9rem;
+      justify-content: center;
+    }
+
+    button {
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      padding: 0.45rem 0.95rem;
+      cursor: pointer;
+      background: radial-gradient(circle at 0% 0%, rgba(56,189,248,0.32), rgba(15,23,42,0.9));
+      font-size: 0.82rem;
+      color: var(--text-main);
+      transition:
+        background 0.15s ease,
+        box-shadow 0.15s ease,
+        transform 0.08s ease,
+        border-color 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      white-space: nowrap;
+    }
+
+    button.primary {
+      background: linear-gradient(135deg, #06b6d4, #6366f1);
+      border-color: transparent;
+      box-shadow:
+        0 12px 26px rgba(37, 99, 235, 0.7),
+        0 0 0 1px rgba(15, 23, 42, 0.9);
+    }
+
+    button:hover {
+      box-shadow:
+        0 10px 24px rgba(15, 23, 42, 0.8),
+        0 0 28px rgba(56, 189, 248, 0.7);
+      transform: translateY(-1px);
+      border-color: rgba(129, 140, 248, 0.9);
+    }
+
+    button.primary:hover {
+      background: linear-gradient(135deg, #0ea5e9, #4f46e5);
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: default;
+      box-shadow: none;
+      transform: none;
+    }
+
+    label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    input[type="radio"] {
+      accent-color: var(--accent);
+      margin-right: 0.25rem;
+    }
+
+    /* layout for workspace + activity */
+
+    .layout-row {
+      display: flex;
+      gap: 1.6rem;
+      align-items: stretch;
+      width: 100%;
+      max-width: 1100px;
+    }
+
+    .layout-main {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .layout-side {
+      flex: 0 0 300px;
+      max-width: 320px;
+    }
+
+    /* Gaze container / workspace */
+
+    .gaze-container {
+      border-radius: 24px;
+      border: 1px solid rgba(148, 163, 184, 0.65);
+      padding: 1.1rem 1.3rem 1.2rem;
+      background:
+        radial-gradient(circle at top left, rgba(56,189,248,0.4) 0, transparent 52%),
+        radial-gradient(circle at bottom right, rgba(147,51,234,0.32) 0, transparent 58%),
+        rgba(15,23,42,0.92);
+      position: relative;
+      margin-bottom: 1rem;
+      transition:
+        box-shadow 0.18s ease,
+        border-color 0.18s ease,
+        transform 0.12s ease;
+      box-shadow:
+        0 28px 75px rgba(15, 23, 42, 0.98),
+        0 0 0 1px rgba(15, 23, 42, 1);
+      overflow: hidden;
+      width: 100%;
+    }
+
+    .gaze-container::after {
+      content: "";
+      position: absolute;
+      inset: -40%;
+      background:
+        radial-gradient(circle at 15% 0%, rgba(96,165,250,0.18) 0, transparent 50%),
+        radial-gradient(circle at 90% 80%, rgba(22,163,74,0.2) 0, transparent 50%);
+      mix-blend-mode: screen;
+      opacity: 0.85;
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    .gaze-container-title {
+      font-size: 0.9rem;
+      font-weight: 500;
+      margin-bottom: 0.4rem;
+      display: flex;
+      align-items: baseline;
+      gap: 0.7rem;
+      flex-wrap: wrap;
+      color: #e5e7eb;
+    }
+
+    #workspaceZone::before {
+      position: absolute;
+      top: -0.8rem;
+      left: 1.15rem;
+      font-size: 0.7rem;
+      background: rgba(15, 23, 42, 0.9);
+      padding: 0.08rem 0.55rem;
+      border-radius: 999px;
+      color: var(--text-muted);
+      content: "Gaze zone: move in to lock • look away or blink ≈ 0.6s to unlock";
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.9);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .zone-hint {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .zone-hint::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.8);
+      box-shadow: 0 0 10px rgba(148, 163, 184, 0.9);
+    }
+
+    .zone-hint.locked {
+      color: var(--accent-strong);
+    }
+
+    .zone-hint.locked::before {
+      background: var(--accent-strong);
+      box-shadow: 0 0 12px rgba(34, 197, 94, 0.9);
+    }
+
+    #workspace > p {
+      display: none;
+    }
+
+    .workspace-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin-top: 0.3rem;
+    }
+
+    .action-card {
+      flex: 0 0 auto;
+      width: 100%;
+      border-radius: 16px;
+      background: rgba(15, 23, 42, 0.8);
+      padding: 0.85rem 0.9rem;
+      border: 1px solid rgba(148, 163, 184, 0.6);
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      transition:
+        background 0.15s ease,
+        box-shadow 0.15s ease,
+        border-color 0.15s ease,
+        transform 0.08s ease;
+    }
+
+    .action-card:hover {
+      background: rgba(15, 23, 42, 0.9);
+      border-color: rgba(129, 140, 248, 0.85);
+      box-shadow: 0 18px 40px rgba(59, 130, 246, 0.65);
+      transform: translateY(-1px);
+    }
+
+    .action-card-title {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: #e5e7eb;
+    }
+
+    .action-card-desc {
+      display: none;
+    }
+
+    .big-action {
+      margin-top: 0.1rem;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      padding: 0.7rem 1rem;
+      font-size: 0.88rem;
+      cursor: pointer;
+      background: radial-gradient(circle at 0% 0%, rgba(56,189,248,0.4), rgba(15,23,42,0.95));
+      text-align: left;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
+    }
+
+    .big-action span.icon {
+      font-size: 1.1rem;
+    }
+
+    .gaze-target-workspace.gaze-highlight {
+      outline: 2px solid #f97316;
+      box-shadow:
+        0 0 0 1px rgba(15, 23, 42, 1),
+        0 0 26px rgba(249, 115, 22, 1);
+      transform: scale(1.03);
+      background: radial-gradient(circle at 10% 0%, rgba(249, 115, 22, 0.35), rgba(15, 23, 42, 0.98));
+      transition:
+        opacity 0.15s ease,
+        transform 0.1s ease,
+        box-shadow 0.1s ease;
+    }
+
+    .gaze-target-workspace.gaze-highlight.unlock-warning {
+      opacity: 0.65;
+    }
+
+    .gaze-menu {
+      margin-top: 0.35rem;
+      padding: 0.55rem 0.7rem;
+      border-radius: 12px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(148, 163, 184, 0.65);
+      font-size: 0.8rem;
+      color: var(--text-main);
+      display: none;
+    }
+
+    .gaze-menu.visible {
+      display: block;
+    }
+
+    .gaze-menu-title {
+      font-weight: 500;
+      font-size: 0.82rem;
+    }
+
+    /* Gaze pointer */
+
+    #smoothGazeDot {
+      position: fixed;
+      width: 18px;
+      height: 18px;
+      margin: -9px 0 0 -9px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, rgba(248,250,252,0.9), rgba(79,70,229,0.2));
+      border: 2px solid rgba(129, 140, 248, 0.9);
+      box-shadow:
+        0 0 6px rgba(248, 250, 252, 0.8),
+        0 0 22px rgba(129, 140, 248, 1);
+      pointer-events: none;
+      z-index: 99999;
+      display: none;
+      backdrop-filter: blur(3px);
+    }
+
+    #webgazerVideoFeed {
+      position: fixed !important;
+      left: 14px !important;
+      bottom: 14px !important;
+      width: 220px !important;
+      height: 155px !important;
+      border: 1px solid rgba(148, 163, 184, 0.7) !important;
+      border-radius: 16px !important;
+      z-index: 100000 !important;
+      box-shadow:
+        0 16px 40px rgba(15, 23, 42, 0.9),
+        0 0 24px rgba(56, 189, 248, 0.6);
+      background: rgba(15, 23, 42, 0.9);
+    }
+
+    #webgazerGazeDot {
+      display: none !important;
+    }
+
+    /* Calibration overlay */
+
+    #calibrationOverlay {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at center, rgba(15,23,42,0.2) 0, rgba(15,23,42,0.95) 60%);
+      z-index: 200000;
+      display: none;
+      cursor: crosshair;
+    }
+
+    .calibration-dot {
+      position: absolute;
+      width: 26px;
+      height: 26px;
+      margin: -13px 0 0 -13px;
+      border-radius: 50%;
+      background: #fee715;
+      border: 3px solid #f59e0b;
+      box-shadow: 0 0 22px rgba(253, 224, 71, 1);
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+
+    .calibration-dot.active {
+      transform: scale(1.22);
+      box-shadow:
+        0 0 10px rgba(248, 250, 252, 0.85),
+        0 0 32px rgba(253, 224, 71, 1);
+    }
+
+    /* Activity panel */
+
+    .activity-card {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      background: radial-gradient(circle at top, rgba(15,23,42,0.95) 0, rgba(15,23,42,0.9) 60%);
+    }
+
+    .activity-body {
+      margin-top: 0.6rem;
+      border-radius: 16px;
+      padding: 0.9rem 0.85rem;
+      background: radial-gradient(circle at top left, rgba(56,189,248,0.18), rgba(15,23,42,0.95));
+      border: 1px solid rgba(148, 163, 184, 0.6);
+      min-height: 160px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      justify-content: center;
+      font-size: 0.85rem;
+    }
+
+    .activity-body.activity-analysis {
+      box-shadow: 0 0 24px rgba(56,189,248,0.7);
+    }
+
+    .activity-body.activity-snapshot {
+      box-shadow: 0 0 24px rgba(234,179,8,0.6);
+    }
+
+    .activity-body.activity-export {
+      box-shadow: 0 0 24px rgba(34,197,94,0.7);
+    }
+
+    .activity-body.activity-idle {
+      opacity: 0.9;
+    }
+
+    .activity-title-compact {
+      font-weight: 500;
+      margin-bottom: 0.4rem;
+    }
+
+    .activity-status-text {
+      font-size: 0.82rem;
+      color: var(--text-main);
+    }
+
+    .activity-bar {
+      width: 100%;
+      height: 9px;
+      border-radius: 999px;
+      background: rgba(15,23,42,0.85);
+      overflow: hidden;
+      border: 1px solid rgba(148,163,184,0.7);
+      margin-bottom: 0.4rem;
+    }
+
+    .activity-bar-inner {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg,#38bdf8,#6366f1);
+      transition: width 0.12s linear;
+    }
+
+    .activity-icon-small {
+      font-size: 1.1rem;
+      margin-bottom: 0.3rem;
+    }
+
+    @media (max-width: 900px) {
+      .layout-row {
+        flex-direction: column;
+      }
+      .layout-side {
+        max-width: 100%;
+        flex: 1 1 auto;
+      }
+    }
+
+    @media (max-width: 768px) {
+      main {
+        padding: 1.2rem 1.1rem 1.8rem;
+      }
+      .gaze-container {
+        padding: 0.95rem 0.9rem 1rem;
+      }
+    }
+  </style>
+</head>
+
+<body>
+<header>
+  <div class="brand">
+    <span class="logo-orb"></span>
+    <div>
+      <h1>Gaze-Assisted Workspace</h1>
+      <p id="statusText">Status: Not started</p>
+    </div>
+  </div>
+  <div class="mode-pill">
+    <span class="mode-pill-dot"></span>
+    <span id="trackingModeLabel">Mode: Mouse-only</span>
+  </div>
+</header>
+
+<main>
+  <div class="stack">
+    <!-- Centered tracking controls -->
+    <div class="card card--controls">
+      <h2>Tracking Controls</h2>
+      <p class="subtext">
+        Start WebGazer, run calibration, then switch to gaze-assisted mode.
+      </p>
+      <div class="controls">
+        <button id="btnStart" class="primary">▶ Start Eye Tracking</button>
+        <button id="btnStop">⏹ Stop</button>
+        <button id="btnCalibrate">🎯 Calibrate</button>
+      </div>
+
+      <div class="controls">
+        <label><input type="radio" name="mode" value="mouse" checked> Mouse-only</label>
+        <label><input type="radio" name="mode" value="gaze"> Gaze-assisted</label>
+      </div>
+    </div>
+
+    <!-- Workspace + Activity -->
+    <div class="layout-row">
+      <div class="layout-main">
+        <div id="workspaceZone" class="gaze-container">
+          <div class="gaze-container-title">
+            <span>Workspace Actions — Gaze focus: <b><span id="workspaceGazeLabel">None</span></b></span>
+            <span id="workspaceHint" class="zone-hint">Look at a large button to lock</span>
+          </div>
+          <div id="workspace">
+            <p>Hidden instructions</p>
+
+            <div class="workspace-row">
+              <div class="action-card">
+                <div class="action-card-title">Analysis</div>
+                <div class="action-card-desc">hidden</div>
+                <button
+                  class="big-action gaze-target-workspace"
+                  data-label="Run Analysis"
+                  data-menu-id="menu-run"
+                >
+                  <span class="icon">▶</span>
+                  <span>Run analysis</span>
+                </button>
+                <div class="gaze-menu" id="menu-run">
+                  <div class="gaze-menu-title">Running analysis</div>
+                </div>
+              </div>
+
+              <div class="action-card">
+                <div class="action-card-title">Snapshot</div>
+                <div class="action-card-desc">hidden</div>
+                <button
+                  class="big-action gaze-target-workspace"
+                  data-label="Save Snapshot"
+                  data-menu-id="menu-snapshot"
+                >
+                  <span class="icon">💾</span>
+                  <span>Save snapshot</span>
+                </button>
+                <div class="gaze-menu" id="menu-snapshot">
+                  <div class="gaze-menu-title">Preparing snapshot</div>
+                </div>
+              </div>
+
+              <div class="action-card">
+                <div class="action-card-title">Export</div>
+                <div class="action-card-desc">hidden</div>
+                <button
+                  class="big-action gaze-target-workspace"
+                  data-label="Export PDF"
+                  data-menu-id="menu-export"
+                >
+                  <span class="icon">📄</span>
+                  <span>Export PDF</span>
+                </button>
+                <div class="gaze-menu" id="menu-export">
+                  <div class="gaze-menu-title">Exporting…</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Activity Panel -->
+      <div class="layout-side">
+        <div class="card activity-card">
+          <h2>Activity Panel</h2>
+          <div id="activityBody" class="activity-body activity-idle">
+            <!-- filled by JS -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<div id="smoothGazeDot"></div>
+
+<div id="calibrationOverlay">
+  <div class="calibration-dot" data-x="10" data-y="10"></div>
+  <div class="calibration-dot" data-x="50" data-y="10"></div>
+  <div class="calibration-dot" data-x="90" data-y="10"></div>
+  <div class="calibration-dot" data-x="10" data-y="50"></div>
+  <div class="calibration-dot" data-x="50" data-y="50"></div>
+  <div class="calibration-dot" data-x="90" data-y="50"></div>
+  <div class="calibration-dot" data-x="10" data-y="90"></div>
+  <div class="calibration-dot" data-x="50" data-y="90"></div>
+  <div class="calibration-dot" data-x="90" data-y="90"></div>
+</div>
+
+<script>
+  const workspaceZone        = document.getElementById("workspaceZone");
+  const workspaceTargets     = [...document.querySelectorAll(".gaze-target-workspace")];
+  const workspaceGazeLabelEl = document.getElementById("workspaceGazeLabel");
+  const workspaceHint        = document.getElementById("workspaceHint");
+
+  const statusText           = document.getElementById("statusText");
+  const trackingModeLabel    = document.getElementById("trackingModeLabel");
+  const smoothDot            = document.getElementById("smoothGazeDot");
+
+  const btnStart             = document.getElementById("btnStart");
+  const btnStop              = document.getElementById("btnStop");
+  const btnCalibrate         = document.getElementById("btnCalibrate");
+
+  const calibrationOverlay   = document.getElementById("calibrationOverlay");
+  const calibrationDots      = [...calibrationOverlay.querySelectorAll(".calibration-dot")];
+
+  const activityBody         = document.getElementById("activityBody");
+
+  const lockStatusEl = { textContent: "NONE" }; // virtual
+
+  let currentMode = "mouse";
+  let gazeActive  = false;
+
+  // timing & smoothing
+  const GAZE_SAMPLE_MIN_INTERVAL = 35;
+  let lastGazeTimestamp = 0;
+
+  const SMOOTH_ALPHA = 0.22;
+  let smoothX = null;
+  let smoothY = null;
+
+  const MIN_MOVE_DIST = 10;
+  const MAX_MOVE_PER_FRAME = 70;
+  let dotX = null;
+  let dotY = null;
+
+  const TRACKING_SCORE_THRESHOLD = 0.6;
+
+  // locking / unlocking
+  const SNAP_RADIUS      = 90;
+  const HOVER_DWELL_MS   = 400;
+
+  const LOOK_AWAY_UNLOCK_MS   = 1000;
+  const LOST_TRACK_UNLOCK_MS  = 300;
+
+  const CALIBRATION_SAMPLES_PER_DOT = 35;
+
+  let hoverTarget = null;
+  let hoverSince  = 0;
+  let activeHoverTarget = null;
+
+  let menuLocked = false;
+  let lockedDotX = 0;
+  let lockedDotY = 0;
+
+  let lookAwaySince = null;
+  let lostSince     = null;
+
+  let lastLockedLabel = null;
+
+  // Analysis progress
+  let analysisProgressInterval = null;
+  let analysisProgressPct      = 0;
+
+  function stopAnalysisProgress() {
+    if (analysisProgressInterval) {
+      clearInterval(analysisProgressInterval);
+      analysisProgressInterval = null;
+    }
+  }
+
+  // Dropdown menus
+  function hideAllMenus() {
+    document.querySelectorAll(".gaze-menu").forEach(menu => {
+      menu.classList.remove("visible");
+    });
+  }
+
+  // Activity panel states
+  function setActivityIdle() {
+    stopAnalysisProgress();
+    activityBody.className = "activity-body activity-idle";
+    activityBody.innerHTML = `
+      <div class="activity-title-compact">Idle</div>
+      <div class="activity-status-text">Look at a workspace button to lock an action.</div>
+    `;
+  }
+
+  function setActivityAnalysisRunning() {
+    stopAnalysisProgress();
+    activityBody.className = "activity-body activity-analysis";
+    activityBody.innerHTML = `
+      <div class="activity-title-compact">Run analysis</div>
+      <div class="activity-bar">
+        <div id="activityProgressInner" class="activity-bar-inner"></div>
+      </div>
+      <div class="activity-status-text">Running analysis…</div>
+    `;
+    const bar = document.getElementById("activityProgressInner");
+    if (!bar) return;
+    analysisProgressPct = 0;
+    analysisProgressInterval = setInterval(() => {
+      if (!bar) {
+        stopAnalysisProgress();
+        return;
+      }
+      analysisProgressPct += 4;
+      if (analysisProgressPct > 85) analysisProgressPct = 85;
+      bar.style.width = analysisProgressPct + "%";
+    }, 150);
+  }
+
+  function setActivityAnalysisCompleted() {
+    activityBody.className = "activity-body activity-analysis";
+    activityBody.innerHTML = `
+      <div class="activity-title-compact">Run analysis</div>
+      <div class="activity-bar">
+        <div class="activity-bar-inner" style="width:100%;"></div>
+      </div>
+      <div class="activity-status-text">Analysis completed.</div>
+    `;
+    stopAnalysisProgress();
+  }
+
+  function setActivitySnapshotTaken() {
+    stopAnalysisProgress();
+    activityBody.className = "activity-body activity-snapshot";
+    activityBody.innerHTML = `
+      <div class="activity-title-compact">Snapshot</div>
+      <div class="activity-icon-small">📸</div>
+      <div class="activity-status-text">Snapshot taken.</div>
+    `;
+  }
+
+  function setActivityExportGenerated() {
+    stopAnalysisProgress();
+    activityBody.className = "activity-body activity-export";
+    activityBody.innerHTML = `
+      <div class="activity-title-compact">Export</div>
+      <div class="activity-icon-small">📄</div>
+      <div class="activity-status-text">Export generated.</div>
+    `;
+  }
+
+  function setActivityForLabel(label) {
+    if (label === "Run Analysis") {
+      setActivityAnalysisRunning();
+    } else if (label === "Save Snapshot") {
+      setActivitySnapshotTaken();
+    } else if (label === "Export PDF") {
+      setActivityExportGenerated();
+    } else {
+      setActivityIdle();
+    }
+  }
+
+  function clearAllHighlights() {
+    workspaceTargets.forEach(el =>
+      el.classList.remove("gaze-highlight", "unlock-warning")
+    );
+    hideAllMenus();
+    workspaceGazeLabelEl.textContent = "None";
+  }
+
+  function unlockMenu(reason) {
+    menuLocked = false;
+    activeHoverTarget = null;
+    hoverTarget = null;
+    hoverSince = 0;
+    lookAwaySince = null;
+    lostSince = null;
+
+    clearAllHighlights();
+    lockStatusEl.textContent = "NONE";
+    workspaceHint.textContent = "Look at a large button to lock";
+    workspaceHint.classList.remove("locked");
+
+    // On unlock from Run Analysis, mark it completed
+    if (lastLockedLabel === "Run Analysis") {
+      setActivityAnalysisCompleted();
+    }
+
+    statusText.textContent = "Status: " + (reason ? `Unlocked (${reason})` : "Unlocked.");
+    lastLockedLabel = null;
+  }
+
+  function setActiveWorkspaceHover(target) {
+    if (target === activeHoverTarget && menuLocked) return;
+    activeHoverTarget = target;
+
+    if (!target) {
+      clearAllHighlights();
+      lockStatusEl.textContent = "NONE";
+      workspaceHint.textContent = "Look at a large button to lock";
+      workspaceHint.classList.remove("locked");
+      menuLocked = false;
+      lastLockedLabel = null;
+      setActivityIdle();
+      return;
+    }
+
+    clearAllHighlights();
+    target.classList.add("gaze-highlight");
+
+    const label = target.dataset.label || target.textContent.trim();
+    workspaceGazeLabelEl.textContent = label;
+    lockStatusEl.textContent = label.toUpperCase();
+    workspaceHint.textContent = "Locked on: " + label;
+    workspaceHint.classList.add("locked");
+    lastLockedLabel = label;
+
+    const r = target.getBoundingClientRect();
+    lockedDotX = (r.left + r.right) / 2;
+    lockedDotY = (r.top + r.bottom) / 2;
+    menuLocked = true;
+
+    // show dropdown for this target
+    const menuId = target.dataset.menuId;
+    if (menuId) {
+      const menuEl = document.getElementById(menuId);
+      if (menuEl) menuEl.classList.add("visible");
+    }
+
+    // update activity panel according to lock
+    setActivityForLabel(label);
+
+    positionFreeDot(lockedDotX, lockedDotY, true);
+  }
+
+  function updateWorkspaceHover(rawX, rawY) {
+    if (menuLocked) return;
+
+    const zoneRect = workspaceZone.getBoundingClientRect();
+    if (
+      rawX < zoneRect.left ||
+      rawX > zoneRect.right ||
+      rawY < zoneRect.top ||
+      rawY > zoneRect.bottom
+    ) {
+      hoverTarget = null;
+      hoverSince  = 0;
+      setActiveWorkspaceHover(null);
+      return;
+    }
+
+    const now = performance.now();
+    let bestHit  = null;
+    let bestDist = Infinity;
+
+    for (const el of workspaceTargets) {
+      const r  = el.getBoundingClientRect();
+      const cx = (r.left + r.right) / 2;
+      const cy = (r.top + r.bottom) / 2;
+      const dx = rawX - cx;
+      const dy = rawY - cy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist <= SNAP_RADIUS && dist < bestDist) {
+        bestDist = dist;
+        bestHit  = el;
+      }
+    }
+
+    const hit = bestHit;
+
+    if (!hit) {
+      hoverTarget = null;
+      hoverSince  = 0;
+      setActiveWorkspaceHover(null);
+      return;
+    }
+
+    if (hoverTarget !== hit) {
+      hoverTarget = hit;
+      hoverSince  = now;
+      return;
+    }
+
+    if (!activeHoverTarget && now - hoverSince >= HOVER_DWELL_MS) {
+      setActiveWorkspaceHover(hit);
+    }
+  }
+
+  function smoothGaze(x, y) {
+    if (smoothX === null || smoothY === null) {
+      smoothX = x;
+      smoothY = y;
+    } else {
+      smoothX = smoothX + SMOOTH_ALPHA * (x - smoothX);
+      smoothY = smoothY + SMOOTH_ALPHA * (y - smoothY);
+    }
+    return { x: smoothX, y: smoothY };
+  }
+
+  function positionFreeDot(x, y, force = false) {
+    if (dotX === null || dotY === null) {
+      dotX = x;
+      dotY = y;
+    }
+
+    const dx = x - dotX;
+    const dy = y - dotY;
+    const distSq = dx*dx + dy*dy;
+
+    if (!force) {
+      if (distSq < MIN_MOVE_DIST * MIN_MOVE_DIST) {
+        smoothDot.style.display = "block";
+        smoothDot.style.left = `${dotX}px`;
+        smoothDot.style.top  = `${dotY}px`;
+        return;
+      }
+      const dist = Math.sqrt(distSq);
+      if (dist > MAX_MOVE_PER_FRAME) {
+        const scale = MAX_MOVE_PER_FRAME / dist;
+        dotX = dotX + dx * scale;
+        dotY = dotY + dy * scale;
+      } else {
+        dotX = x;
+        dotY = y;
+      }
+    } else {
+      dotX = x;
+      dotY = y;
+    }
+
+    smoothDot.style.left = `${dotX}px`;
+    smoothDot.style.top  = `${dotY}px`;
+    smoothDot.style.display = "block";
+  }
+
+  function logAction(source, label, detail) {
+    const time = new Date().toLocaleTimeString();
+    console.log(`[${source}] ${label} — ${detail} (${time})`);
+    statusText.textContent = `Status: ${label} – ${detail}`;
+  }
+
+  function startAnalysis() {
+    logAction("Workspace", "Run Analysis", "Mock analysis started");
+  }
+
+  function addSnapshot() {
+    logAction("Workspace", "Save Snapshot", "Mock snapshot saved");
+  }
+
+  function markExport() {
+    logAction("Workspace", "Export PDF", "Mock PDF export created");
+  }
+
+  function handleWorkspaceClick(e) {
+    const label = e.currentTarget.dataset.label || e.currentTarget.textContent.trim();
+
+    switch (label) {
+      case "Run Analysis":
+        startAnalysis();
+        break;
+      case "Save Snapshot":
+        addSnapshot();
+        break;
+      case "Export PDF":
+        markExport();
+        break;
+    }
+  }
+
+  workspaceTargets.forEach(btn => btn.addEventListener("click", handleWorkspaceClick));
+
+  document.querySelectorAll("input[name='mode']").forEach(r => {
+    r.addEventListener("change", () => {
+      currentMode = r.value;
+      trackingModeLabel.textContent = `Mode: ${currentMode === "gaze" ? "Gaze-assisted" : "Mouse-only"}`;
+      if (currentMode === "mouse") {
+        smoothDot.style.display = "none";
+      }
+    });
+  });
+
+  function handleGaze(data) {
+    if (!gazeActive) return;
+
+    const now = performance.now();
+
+    if (!data) {
+      if (menuLocked) {
+        if (!lostSince) lostSince = now;
+        if (now - lostSince > LOST_TRACK_UNLOCK_MS) {
+          unlockMenu("eyes closed / tracking lost");
+        }
+        positionFreeDot(lockedDotX, lockedDotY, true);
+      }
+      return;
+    }
+
+    let trackingLost = false;
+    try {
+      const tracker = webgazer.getTracker && webgazer.getTracker();
+      if (tracker && typeof tracker.getScore === "function") {
+        const score = tracker.getScore();
+        if (typeof score === "number" && !isNaN(score)) {
+          trackingLost = score < TRACKING_SCORE_THRESHOLD;
+        } else {
+          trackingLost = true;
+        }
+      }
+    } catch (e) {}
+
+    const outOfScreen =
+      typeof data.x !== "number" ||
+      typeof data.y !== "number" ||
+      isNaN(data.x) || isNaN(data.y) ||
+      data.x < 0 || data.x > window.innerWidth ||
+      data.y < 0 || data.y > window.innerHeight;
+
+    if (trackingLost || outOfScreen) {
+      if (menuLocked) {
+        if (!lostSince) lostSince = now;
+        if (now - lostSince > LOST_TRACK_UNLOCK_MS) {
+          unlockMenu("eyes closed / tracking lost");
+        }
+        positionFreeDot(lockedDotX, lockedDotY, true);
+      }
+      return;
+    }
+
+    lostSince = null;
+
+    if (now - lastGazeTimestamp < GAZE_SAMPLE_MIN_INTERVAL) return;
+    lastGazeTimestamp = now;
+
+    const sm = smoothGaze(data.x, data.y);
+    const rawX = sm.x;
+    const rawY = sm.y;
+
+    if (menuLocked) {
+      const dx   = rawX - lockedDotX;
+      const dy   = rawY - lockedDotY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist > SNAP_RADIUS * 1.5) {
+        if (!lookAwaySince) lookAwaySince = now;
+        if (now - lookAwaySince > LOOK_AWAY_UNLOCK_MS) {
+          unlockMenu("looked away from locked action");
+        }
+      } else {
+        lookAwaySince = null;
+      }
+
+      positionFreeDot(lockedDotX, lockedDotY, true);
+      return;
+    } else {
+      lookAwaySince = null;
+    }
+
+    positionFreeDot(rawX, rawY);
+
+    if (currentMode !== "gaze") return;
+
+    updateWorkspaceHover(rawX, rawY);
+  }
+
+  // Calibration
+
+  let isCalibrating = false;
+  let calibIndex    = 0;
+
+  function positionCalibrationDots() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    calibrationDots.forEach(dot => {
+      const px = parseFloat(dot.dataset.x) / 100;
+      const py = parseFloat(dot.dataset.y) / 100;
+      dot.style.left = `${px * w}px`;
+      dot.style.top  = `${py * h}px`;
+    });
+  }
+
+  function highlightCurrentDot() {
+    calibrationDots.forEach((dot, idx) => {
+      dot.classList.toggle("active", idx === calibIndex);
+    });
+  }
+
+  function startCalibration() {
+    if (!gazeActive) {
+      statusText.textContent = "Status: start eye tracking first, then calibrate.";
+      return;
+    }
+    isCalibrating = true;
+    calibIndex    = 0;
+    calibrationOverlay.style.display = "block";
+    positionCalibrationDots();
+    highlightCurrentDot();
+    statusText.textContent = "Status: Calibration — look at each dot and click it.";
+    smoothX = smoothY = null;
+  }
+
+  function onCalibrationClick(e) {
+    if (!isCalibrating) return;
+    const dot  = e.currentTarget;
+    const rect = dot.getBoundingClientRect();
+    const x    = rect.left + rect.width / 2;
+    const y    = rect.top  + rect.height / 2;
+
+    for (let i = 0; i < CALIBRATION_SAMPLES_PER_DOT; i++) {
+      webgazer.recordScreenPosition(x, y, "click");
+    }
+
+    calibIndex++;
+    if (calibIndex >= calibrationDots.length) {
+      isCalibrating = false;
+      calibrationOverlay.style.display = "none";
+      statusText.textContent = "Status: Calibration complete. Switch to gaze-assisted mode.";
+      smoothX = smoothY = null;
+    } else {
+      highlightCurrentDot();
+    }
+  }
+
+  calibrationDots.forEach(dot => dot.addEventListener("click", onCalibrationClick));
+  btnCalibrate.onclick = startCalibration;
+  window.addEventListener("resize", () => {
+    if (calibrationOverlay.style.display === "block") positionCalibrationDots();
+  });
+
+  // Start/stop WebGazer
+
+  btnStart.onclick = () => {
+    if (gazeActive) return;
+    statusText.textContent = "Status: Starting eye tracking…";
+
+    webgazer
+      .showVideo(true)
+      .showFaceOverlay(true)
+      .showPredictionPoints(false)
+      .setRegression("ridge")
+      .setGazeListener(handleGaze)
+      .begin()
+      .then(() => {
+        gazeActive = true;
+        statusText.textContent = "Status: Eye tracking running. Calibrate, then switch to gaze-assisted mode.";
+      })
+      .catch(err => {
+        console.error(err);
+        statusText.textContent = "Status: Error starting WebGazer (see console).";
+      });
+  };
+
+  btnStop.onclick = () => {
+    if (!gazeActive) return;
+    webgazer.pause();
+    gazeActive = false;
+    smoothDot.style.display = "none";
+    statusText.textContent = "Status: Tracking stopped.";
+    setActivityIdle();
+  };
+
+  // init
+  setActivityIdle();
+</script>
+
+</body>
+</html>
